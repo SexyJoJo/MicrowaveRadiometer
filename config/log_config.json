@@ -1,0 +1,46 @@
+{
+  "version":1,
+  "loggers":{
+    "root":{
+      "level":"WARNING",
+      "handlers":["error_console_handler"]
+    },
+    "fc_logger":{
+      "level":"INFO",
+      "handlers":["info_console_handler","info_file_handler"]
+    }
+  },
+  "handlers":{
+    "error_console_handler":{
+      "class":"logging.StreamHandler",
+      "level":"ERROR",
+      "formatter":"errorFormatter",
+      "stream":"ext://sys.stdout"
+    },
+    "info_console_handler":{
+      "class":"logging.StreamHandler",
+      "level":"INFO",
+      "formatter":"infoFormatter",
+      "stream":"ext://sys.stdout"
+    },
+    "info_file_handler":{
+      "class":"logging.handlers.TimedRotatingFileHandler",
+      "level":"INFO",
+      "formatter":"infoFormatter",
+      "filename":"./log/fc_check.log",
+      "when": "M",
+      "encoding": "utf8"
+    }
+  },
+  "formatters":{
+    "errorFormatter": {
+      "format":"%(asctime)s %(levelname)s %(filename)s line:%(lineno)d %(message)s",
+      "datefmt":"%Y-%m-%d %H:%M:%S"
+    },
+    "infoFormatter":{
+      "format":"%(asctime)s %(message)s",
+      "datefmt":"%Y-%m-%d %H:%M:%S"
+    }
+  }
+}
+

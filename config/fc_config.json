@@ -1,0 +1,13 @@
+{
+  "dir_path": "./fc_data/before/内丘微波辐射计资料-2021.9.30",
+  "save_path": "./fc_data/after/雄安荣城微波辐射计-2021.8.12调整格式后",
+
+  "heads": {
+    "raw": ["Record","DateTime","SurTem(℃)","SurHum(%)","SurPre(hPa)","Tir(℃)","Rain","QCFlag","Az(deg)","El(deg)","QCFlag_BT"],
+    "cp": ["Record","DateTime","10","SurTem(℃)","SurHum(%)","SurPre(hPa)","Tir(℃)","Rain","CloudBase(km)","Vint(mm)",
+      "Lqint(mm)","QCflag"],
+    "sta": ["Record","DateTime","General","EServo","AServo","RCV0","RCV1","TRec1","TRec2","SRec1","SRec2","LO","BIB",
+      "TAmb1","TAmb2","TAmb3","TAmb4","SurTem","SurHum","SurPre","Rain","Tir","TimeSync","ECM","ExPower","Communication"],
+    "cal": ["Record","DataType"]
+  }
+}
