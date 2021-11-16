@@ -8,10 +8,10 @@ import pandas as pd
 
 
 class FormatCheck:
-    def __init__(self, file, config):
+    def __init__(self, file, config, file_path):
         self.config = config
         self.file = file
-        self.file_path = os.path.join(config["dir_path"], file)
+        self.file_path = file_path
         self.filename, self.ext = os.path.splitext(file)
         items = self.filename.split('_')
         self.datatype = items[-2]
@@ -374,20 +374,20 @@ class FormatCheck:
 
 
 def main():
-    try:
-        with open(r"config/fc_config.json", "r", encoding='utf-8') as config_json:
-            fc_config = json.load(config_json)
+    # try:
+    with open(r"config/fc_config.json", "r", encoding='utf-8') as config_json:
+        fc_config = json.load(config_json)
 
-        # 载入日志配置
-        with open(r"config/log_config.json", "r") as config_json:
-            log_config = json.load(config_json)
-        logging.config.dictConfig(log_config)
-        fc_logger = logging.getLogger("fc_logger")
-        console_logger = logging.getLogger("root")
+    # 载入日志配置
+    with open(r"config/log_config.json", "r") as config_json:
+        log_config = json.load(config_json)
+    logging.config.dictConfig(log_config)
+    fc_logger = logging.getLogger("fc_logger")
+    console_logger = logging.getLogger("root")
 
-        files = os.listdir(fc_config["dir_path"])
+    for root, dirs, files in os.walk(fc_config["dir_path"]):
         for file in files:
-            fc = FormatCheck(file, fc_config)
+            fc = FormatCheck(file, fc_config, os.path.join(root, file))
             if fc.datatype == 'RAW':
                 result = fc.raw_check()
                 fc_logger.info(f"文件名：{result[0]}\n错误码：{result[1]}\n错误内容：{result[2]}\n")
@@ -401,9 +401,9 @@ def main():
                 result = fc.cal_check()
                 fc_logger.info(f"文件名：{result[0]}\n错误码：{result[1]}\n错误内容：{result[2]}\n")
 
-    except Exception as e:
-        fc_logger.error("检查程序出现错误，检查中止")
-        console_logger.exception(e)
+    # except Exception as e:
+    #     fc_logger.error("检查程序出现错误，检查中止")
+    #     console_logger.exception(e)
 
 
 main()

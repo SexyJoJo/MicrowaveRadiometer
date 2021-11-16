@@ -1,4 +1,5 @@
-"""新格式文件质控"""
+"""旧格式文件质控"""
+import time
 import numpy as np
 import pandas as pd
 import os
@@ -10,10 +11,10 @@ from datetime import datetime, timedelta
 
 class QualityControl:
     def __init__(self, data, yd_data, config):
-        """读取当天与前一天数据，初始化QCFlag_BT,读取起始和结束通道以及K通道"""
+        """读取当天与前一天数据，初始化QC_flag,读取起始和结束通道以及K通道"""
         self.data = data
         self.yd_data = yd_data
-        self.data.loc[:, 'QCFlag_BT'] = '00000'
+        self.data.loc[:, 'QC_flag'] = '00000'
         self.config = config
         self.channel_cnt = config["channel_cnt"]
         self.start_ch = config["channels"][config["channel_cnt"]][0]
@@ -29,10 +30,10 @@ class QualityControl:
         """若任意通道亮温≤0K或>400K或为空值，则该时次质量标识n1标记为2"""
         chdata = self.data.loc[:, self.start_ch:self.end_ch]
         result = ((chdata > 400) | (chdata <= 0)) | chdata.isnull()
-        # 获得需要更改QCFlag_BT的索引列表
+        # 获得需要更改QC_flag的索引列表
         modi_index = chdata[result].dropna(how='all').index
-        self.data.loc[modi_index, 'QCFlag_BT'] =\
-            self.data.loc[modi_index, 'QCFlag_BT'].apply(self.__modify_flag, index=0, val='2')
+        self.data.loc[modi_index, 'QC_flag'] =\
+            self.data.loc[modi_index, 'QC_flag'].apply(self.__modify_flag, index=0, val='2')
 
     def check_n2(self):
         """n2 : 若任意通道亮温连续3个数值保持不变（不考虑时间间隔），则该时次质量标识n2标记为1;（回溯当前文件前一天最新的2条记录）
@@ -46,7 +47,7 @@ class QualityControl:
             values = merged_chdata[column]  # 每列的数值列表
             for index in range(4, len(merged_chdata)):
                 # 检查n2是否经过前面通道的更改已经变为2，如果已经为2则检查下一行
-                if self.data.loc[index - 4, 'QCFlag_BT'][1] == '2':
+                if self.data.loc[index - 4, 'QC_flag'][1] == '2':
                     continue
                 # 统计重复个数
                 cnt = 1
@@ -56,33 +57,33 @@ class QualityControl:
                     i -= 1
                     if cnt == 5:
                         break
-                # 更改QCFlag_BT中的n2
+                # 更改QC_flag中的n2
                 if cnt == 5:
-                    self.data.loc[index - 4, 'QCFlag_BT'] = \
-                        self.__modify_flag(self.data.loc[index - 4, 'QCFlag_BT'], 1, '2')
+                    self.data.loc[index - 4, 'QC_flag'] = \
+                        self.__modify_flag(self.data.loc[index - 4, 'QC_flag'], 1, '2')
                 elif 3 <= cnt < 5:
-                    self.data.loc[index - 4, 'QCFlag_BT'] = \
-                        self.__modify_flag(self.data.loc[index - 4, 'QCFlag_BT'], 1, '1')
+                    self.data.loc[index - 4, 'QC_flag'] = \
+                        self.__modify_flag(self.data.loc[index - 4, 'QC_flag'], 1, '1')
 
     def check_n3(self):
         chdata = self.data.loc[:, self.start_ch:self.end_ch]
 
         # 设备自带降水标记判别：当降水标识为1，则该时次质量标识n3标记为2
-        self.data.loc[self.data['Rain'] == 1, 'QCFlag_BT'] = \
-            self.data.loc[self.data['Rain'] == 1, 'QCFlag_BT'].apply(self.__modify_flag, index=2, val='2')
+        self.data.loc[self.data['Rain'] == 1, 'QC_flag'] = \
+            self.data.loc[self.data['Rain'] == 1, 'QC_flag'].apply(self.__modify_flag, index=2, val='2')
 
         # 若第1通道(22GHz左右）亮温＞169K，则该时次质量标识n3标记为1，降水标识（不改原文件，仅指中间过程文件）为1
         ch1 = chdata.loc[:, self.start_ch]
         result = (ch1 > 169)
         self.data.loc[result, 'Rain'] = 1
-        result = (ch1 > 169) & (self.data.loc[:, 'QCFlag_BT'].apply(lambda flag: flag[2]) != '2')  # 若n3已经为2，则无需更改
-        self.data.loc[result, 'QCFlag_BT'] =\
-            self.data.loc[result, 'QCFlag_BT'].apply(self.__modify_flag, index=2, val='1')
+        result = (ch1 > 169) & (self.data.loc[:, 'QC_flag'].apply(lambda flag: flag[2]) != '2')  # 若n3已经为2，则无需更改
+        self.data.loc[result, 'QC_flag'] =\
+            self.data.loc[result, 'QC_flag'].apply(self.__modify_flag, index=2, val='1')
 
         # 当降雨标识为0，且前一个降雨标识为1时，若各通道亮温观测值较前一个时次下降，则将该时次n3标记为1，降水标识为1；
         for index in self.data.index:
             # 若n3已经为2或者1，则判断下一行
-            if self.data.loc[index, 'QCFlag_BT'][2] != '0':
+            if self.data.loc[index, 'QC_flag'][2] != '0':
                 continue
             # 判断当天第一行时需要回溯前一天的最后一行
             if index == 0:
@@ -92,8 +93,8 @@ class QualityControl:
                         continue
                     else:
                         self.data.loc[index, 'Rain'] = 1
-                        self.data.loc[index, 'QCFlag_BT'] = \
-                            self.__modify_flag(self.data.loc[index, 'QCFlag_BT'], 2, '1')
+                        self.data.loc[index, 'QC_flag'] = \
+                            self.__modify_flag(self.data.loc[index, 'QC_flag'], 2, '1')
             # 第二行到最后
             else:
                 if (self.data.loc[index, 'Rain'] == 0) & (self.data.loc[index - 1, 'Rain'] == 1):
@@ -103,11 +104,10 @@ class QualityControl:
                         continue
                     else:
                         self.data.loc[index, 'Rain'] = 1
-                        self.data.loc[index, 'QCFlag_BT'] = \
-                            self.__modify_flag(self.data.loc[index, 'QCFlag_BT'], 2, '1')
+                        self.data.loc[index, 'QC_flag'] = \
+                            self.__modify_flag(self.data.loc[index, 'QC_flag'], 2, '1')
 
         # 当中间文件的降水标识为1，计算与最近一次标识为1的降雨的观测时间差，若小于3小时，则将两次降雨标识之间的数据n3标识为1。
-        self.yd_data.loc[:, 'QCFlag_BT'] = '00000'
         if not self.data[self.data['Rain'] == 1].empty:  # 若不存在Rain为1的记录，则跳过此步
             for index in self.data[self.data['Rain'] == 1].index:
                 # rain为1的第一行数据需要回溯前一天最后一条rain为1的记录
@@ -115,26 +115,26 @@ class QualityControl:
                     pre_index = index  # 初始化pre_index，用于无需回溯时，记录index的前一个rain为1的位置
                     if not self.yd_data[self.yd_data['Rain'] == 1].empty:  # 若前一天不存在rain为1，则无需回溯
                         yd_index = self.yd_data[self.yd_data['Rain'] == 1].index[-1]  # 前一天最后一个rain为1的行索引
-                        t1 = datetime.strptime(self.yd_data.loc[yd_index, 'DateTime'], '%Y-%m-%d %H:%M:%S')
-                        t2 = datetime.strptime(self.data.loc[index, 'DateTime'], '%Y-%m-%d %H:%M:%S')
+                        t1 = datetime.strptime(self.yd_data.loc[yd_index, 'Date/Time'], '%Y/%m/%d %H:%M')
+                        t2 = datetime.strptime(self.data.loc[index, 'Date/Time'], '%Y/%m/%d %H:%M')
                         if (t2 - t1).seconds / 3600 < 3:
                             # 处理边界情况
                             if yd_index != len(self.yd_data)-1:
-                                self.yd_data.loc[yd_index+1:, 'QCFlag_BT'] = \
-                                    self.yd_data.loc[yd_index+1:, 'QCFlag_BT']\
+                                self.yd_data.loc[yd_index+1:, 'QC_flag'] = \
+                                    self.yd_data.loc[yd_index+1:, 'QC_flag']\
                                         .apply(self.__modify_flag, index=2, val='1')
                             if index != 0:
-                                self.data.loc[:index-1, 'QCFlag_BT'] = \
-                                    self.data.loc[:index-1, 'QCFlag_BT']\
+                                self.data.loc[:index-1, 'QC_flag'] = \
+                                    self.data.loc[:index-1, 'QC_flag']\
                                         .apply(self.__modify_flag, index=2, val='1')
                 # 无需回溯部分
                 else:
-                    t1 = datetime.strptime(self.data.loc[pre_index, 'DateTime'], '%Y-%m-%d %H:%M:%S')
-                    t2 = datetime.strptime(self.data.loc[index, 'DateTime'], '%Y-%m-%d %H:%M:%S')
+                    t1 = datetime.strptime(self.data.loc[pre_index, 'Date/Time'], '%Y/%m/%d %H:%M')
+                    t2 = datetime.strptime(self.data.loc[index, 'Date/Time'], '%Y/%m/%d %H:%M')
                     # 间隔小于3小时，将pre_index 和 index 之间的n3标为1
                     if (t2 - t1).seconds / 3600 < 3:
-                        self.data.loc[pre_index+1:index-1, 'QCFlag_BT'] = \
-                            self.data.loc[pre_index+1:index-1, 'QCFlag_BT']\
+                        self.data.loc[pre_index+1:index-1, 'QC_flag'] = \
+                            self.data.loc[pre_index+1:index-1, 'QC_flag']\
                                 .apply(self.__modify_flag, index=2, val='1')
                     pre_index = index  # 向下挪动pre_index
 
@@ -160,11 +160,11 @@ class QualityControl:
                 result2 = (abs(chdata.loc[index, :] - chdata.loc[index-1, :]) > 4)
 
             if True in result1.values:
-                self.data.loc[index, 'QCFlag_BT'] = \
-                    self.__modify_flag(self.data.loc[index, 'QCFlag_BT'], 3, '1')
+                self.data.loc[index, 'QC_flag'] = \
+                    self.__modify_flag(self.data.loc[index, 'QC_flag'], 3, '1')
             if True in result2.values:
-                self.data.loc[index, 'QCFlag_BT'] = \
-                    self.__modify_flag(self.data.loc[index, 'QCFlag_BT'], 3, '2')
+                self.data.loc[index, 'QC_flag'] = \
+                    self.__modify_flag(self.data.loc[index, 'QC_flag'], 3, '2')
 
     def check_n5(self):
         """若超出阈值，则n5标记为1。"""
@@ -174,7 +174,7 @@ class QualityControl:
         else:
             chdata = self.data.loc[:, self.start_ch:self.end_ch]
         # 获得对应时间的阈值
-        month = str(datetime.strptime(self.data.iloc[0, 1], '%Y-%m-%d %H:%M:%S').month)
+        month = str(datetime.strptime(self.data.iloc[0, 1], '%Y/%m/%d %H:%M').month)
 
         min_list = self.thresholds[month]['min']
         max_list = self.thresholds[month]['max']
@@ -182,11 +182,12 @@ class QualityControl:
             line = chdata.loc[index, :].reset_index(drop=True)
             # 如果有超出阈值的值
             if (False in (line >= min_list).values) | (False in (line < max_list).values):
-                self.data.loc[index, 'QCFlag_BT'] = self.__modify_flag(self.data.loc[index, 'QCFlag_BT'], 4, '1')
+                self.data.loc[index, 'QC_flag'] = self.__modify_flag(self.data.loc[index, 'QC_flag'], 4, '1')
 
     def save_file(self):
-        # out_path = os.path.splitext(self.config["filepath"])[0] + r'_QC.csv'
-        self.data.to_csv(full_path, encoding='gbk', index=False)
+        out_path = os.path.splitext(self.config["filepath"])[0] + r'_QC.csv'
+        self.data.to_csv(out_path)
+        print(self.data.iloc[:50, [1, 7, 8, 9, 6, -1]])
 
     @staticmethod
     def __modify_flag(flag, index, val):
@@ -209,92 +210,51 @@ class QualityControl:
         # 分别寻找n通道中最接近14通道中每个通道的频率
         for freq in freq_14:
             temp = list(abs(freq_n - freq))
-            result.append('Ch ' + format(freq_n[temp.index(min(temp))], '.3f'))
+            result.append('Ch' + format(freq_n[temp.index(min(temp))], '.3f'))
         return result
 
 
-def main(config_path, filepath):
-    # try:
-    # while True:
-    # 载入日志配置
-    with open(r"config/log_config.json", "r") as config_json:
-        log_config = json.load(config_json)
-    logging.config.dictConfig(log_config)
-    console_logger = logging.getLogger("root")
-
-    # 用于n5质控的极值字典
-    with open(config_path, "r") as config_json:
-        config = json.load(config_json)
-    # filepath = config["filepath"]
-
-    # 获得前一天文件的路径用于回溯
-    path, td_file = os.path.split(filepath)
-    date = td_file.split("_")[4]
-    td = datetime.strptime(date, '%Y%m%d%H%M%S')
-    yd = datetime.strftime(td - timedelta(days=1), '%Y%m%d%H%M%S')
-    field[4] = yd
-    temp = path.split('\\')
-    temp[-1] = yd[:8]
-    yd_path = '\\'.join(temp)
-    yd_file = "_".join(field)
-    yd_filepath = os.path.join(yd_path, yd_file)
-
-    # 读取文件
-    # try:
-    data = pd.read_csv(filepath, header=2, engine="python", encoding="gbk")
+def main(config_path):
     try:
-        yd_data = pd.read_csv(yd_filepath, header=2, engine="python", encoding="gbk")
+        while True:
+            # 载入日志配置
+            with open(r"config/log_config.json", "r") as config_json:
+                log_config = json.load(config_json)
+            logging.config.dictConfig(log_config)
+            console_logger = logging.getLogger("root")
 
-        # 质控
-        qc = QualityControl(data.copy(), yd_data, config)
-        qc.check_n1()
-        qc.check_n2()
-        qc.check_n3()
-        qc.check_n4()
-        qc.check_n5()
-        qc.save_file()
-    except FileNotFoundError:
-        print("前一天文件不存在, 略过质控")
-        return False
+            # 用于n5质控的极值字典
+            with open(config_path, "r") as config_json:
+                config = json.load(config_json)
+            filepath = config["filepath"]
+            # 获得前一天文件的路径用于回溯
+            path, td_file = os.path.split(filepath)
+            td = datetime.strptime(td_file[9:19], '%Y-%m-%d')
+            yd = datetime.strftime(td - timedelta(days=1), '%Y-%m-%d')
+            yd_file = td_file[:9] + yd + td_file[19:]
+            yd_filepath = os.path.join(path, yd_file)
 
-    # # 隔半小时刷新一次
-    # time.sleep(5)
-
-    #     except FileNotFoundError:
-    #         console_logger.exception(FileNotFoundError)
-    # except Exception as e:
-    #     console_logger.exception(e)
-    return True
-
-
-if __name__ == '__main__':
-    with open("config/qc_config.json", "r", encoding='utf-8') as config:
-        qc_dir = json.load(config)["dir_path"]
-    for root, dirs, files in os.walk(qc_dir):
-        for file in files:
-            field = file.split('_')
+            # 读取文件
             try:
-                if field[5] == 'P' or field[-1][0] == 'M' or field[-1][2:] != 'txt' or field[-2] in ['CAL', 'STA']:
-                    continue
-            except Exception:
-                continue
-            full_path = os.path.join(root, file)
-            full_path = full_path.replace('\\\\', '\\')
-            print("正在质控：", full_path)
+                data = pd.read_csv(filepath)
+                yd_data = pd.read_csv(yd_filepath)
 
-            # 读取开头两行设备信息，用于后续写入
-            with open(full_path, "r", encoding='gbk') as f:
-                line1 = f.readline()
-                line2 = f.readline()
+                # 质控
+                qc = QualityControl(data.copy(), yd_data, config)
+                qc.check_n1()
+                qc.check_n2()
+                qc.check_n3()
+                qc.check_n4()
+                qc.check_n5()
+                qc.save_file()
 
-            # 质控
-            result = main(config_path=r"config/qc_config.json", filepath=full_path)
+                # 隔半小时刷新一次
+                time.sleep(5)
 
-            # 若质控成功，在文件开头写入设备信息
-            if result:
-                with open(full_path, "r+", encoding='gbk') as f:
-                    old = f.read()
-                    f.seek(0, 0)
-                    f.write(line1)
-                    f.write(line2)
-                    f.write(old)
+            except FileNotFoundError:
+                console_logger.exception(FileNotFoundError)
+    except Exception as e:
+        console_logger.exception(e)
+
+
+main(config_path=r"config/qc_config.json")
